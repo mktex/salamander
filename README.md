@@ -1,6 +1,6 @@
 ### Overview:
 Details on the implementation find at blog article
-[Blog post](http://machine-learning.bfht.eu/learning-about-the-universe-as-a-hobby-astronomer-data-collection-and-analysis-ii-of-iv)
+[Blog post](http://machine-learning.bfht.eu/learning-about-the-universe-as-a-hobby-astronomer-heres-one-way-to-go-about-it-i-of-iv)
 
 There are two options on new objects:
 
@@ -11,7 +11,7 @@ There are two options on new objects:
     python download_sdss.py
 </pre>
 For a simple trial one FITS file is left under ./data. Follow procedure
-described in blog article part II (Data collection) to try out newly
+described in blog article part II ([Data collection](http://machine-learning.bfht.eu/learning-about-the-universe-as-a-hobby-astronomer-data-collection-and-analysis-ii-of-iv)) to try out newly
 region of sky.
 
 -  process data from SDSS:
