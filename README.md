@@ -19,11 +19,6 @@ region of sky.
     python read_sdss.py
 </pre>
 
--  process data from SDSS:
-<pre>
-    python read_sdss.py
-</pre>
-
 
 2. If not in SDSS then in Simbad:
 
