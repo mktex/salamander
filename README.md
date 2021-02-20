@@ -1,6 +1,6 @@
 ### Overview:
-Details on the implementation find at blog article:  
-[TODO]
+Details on the implementation find at blog article
+[Blog post](http://machine-learning.bfht.eu/learning-about-the-universe-as-a-hobby-astronomer-data-collection-and-analysis-ii-of-iv)
 
 There are two options on new objects:
 
