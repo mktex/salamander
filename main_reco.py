@@ -16,6 +16,8 @@ from sklearn.model_selection import train_test_split
 import data_extract as dext
 from heimat import reco
 import settings
+import cache_manager as cmng
+import portals_urls
 
 pca_u, G = None, None
 pca_a, A_star = None, None
@@ -27,6 +29,8 @@ CLF_DBSCAN = None
 D, PAPERS_LIST = None, None
 UVT = None
 
+papers_total, objects_articles_dict, objects_df = cmng.load_work()
+
 pca_G_ncomponents = settings.pca_G_ncomponents
 pca_A_ncomponents = settings.pca_A_ncomponents
 mlp_iter = settings.mlp_iter
@@ -34,6 +38,8 @@ funksvd_iter = settings.funksvd_iter
 funksvd_latent_features = settings.funksvd_latent_features
 
 pd.set_option("max_rows", 50)
+
+np.random.seed()
 
 
 def dist_em(xs1, xs2):
@@ -369,7 +375,7 @@ def do_model_mlp():
     np.random.shuffle(indx)
     X = X.loc[indx]
     X, Y = X.values[:, :-1], X.values[:, -1]
-    X_train, X_test, y_train, y_test = train_test_split(X, Y, random_state=1, test_size=0.3)
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.3)
     mlp = MLPClassifier(max_iter=mlp_iter, verbose=True, early_stopping=False)
     CLF_MLP = mlp.fit(X_train, y_train)
     labels_mlp = CLF_MLP.classes_
@@ -675,6 +681,7 @@ def save_model(model_filepath):
 
 def load_model(model_filepath):
     global A, U, MAP, pca_u, G, pca_a, A_star, CLF_MLP, CLF_DBSCAN, D, PAPERS_LIST, UVT
+    global papers_total, objects_articles_dict, objects_df
     import os
 
     if not os.path.isfile(model_filepath):
@@ -809,7 +816,10 @@ def apply(object_id, model_filepath, topk=10, return_value=False, ignore_article
         return apply_mlp_svd_voting(object_id=object_id, topk=topk, return_df=True, ignore_articles=ignore_articles)
 
 
-def search_object_name(xname, U):
+reformat_object_id = lambda xstr: ' '.join(list(filter(lambda x: x.strip() != "", xstr.split(" "))))
+
+
+def search_object_name(xname, input_df):
     """
         SIMBAD gives names in specific format, so "M   1" and not "M1"
         This function looks for the name without the spaces and returns the correct SIMBAD or SDSS expected format
@@ -818,8 +828,7 @@ def search_object_name(xname, U):
              (see method apply())
     :return:
     """
-    reformat_object_id = lambda xstr: ' '.join(list(filter(lambda x: x.strip() != "", xstr.split(" "))))
-    res = list(filter(lambda x: reformat_object_id(xname) in reformat_object_id(x), U['OBJID'].values.tolist()))
+    res = list(filter(lambda x: reformat_object_id(xname) in reformat_object_id(x), input_df['OBJID'].values.tolist()))
     if len(res) != 0:
         return res[0]
     else:
@@ -836,6 +845,18 @@ def describe_data(model_filepath="./data/salamander_model.pckl"):
     """
     global U, A, MAP, G, A_star, CLF_MLP, CLF_DBSCAN, D, PAPERS_LIST, UVT
     load_model(model_filepath)
+
+
+def get_coordinates(object_id):
+    global objects_df
+    res = objects_df[
+        list(map(lambda x: reformat_object_id(x.strip().lower().decode("utf-8")) ==
+                           reformat_object_id(object_id.lower()),
+                 objects_df.OBJID.values))]
+    if res.shape[0] == 0:
+        print("Nix gefunden .. ")
+        print("object_id:", object_id)
+    return res[["PLUG_RA", "PLUG_DEC"]]
 
 
 def print_help():
@@ -895,17 +916,33 @@ if __name__ == "__main__":
             output_table = []
             paper_ids = []
             for object_id in object_id_list:
+                res = get_coordinates(object_id)
+                portals_urls.RA = res.PLUG_RA.iloc[0]
+                portals_urls.DEC = res.PLUG_DEC.iloc[0]
+                url_img, url_cas, url_simbad, url_cds, url_ned = portals_urls.show_urls()
+                urls = "\n\n{}" \
+                       "\n\n{}" \
+                       "\n\n{}" \
+                       "\n\n{}" \
+                       "\n\n{}".format(
+                    url_img, url_cas, url_simbad, url_cds, url_ned
+                )
                 pred_df = apply(object_id=object_id, model_filepath=model_path, topk=topk,
                                 return_value=True, ignore_articles=paper_ids)
                 for i in range(0, pred_df.shape[0]):
                     article_index = pred_df.article_index.iloc[i]
                     paper_id = A.paper_id.iloc[article_index]
+                    associated = pred_df.associated.iloc[i]
+                    scores = str([pred_df.mlp_proba.iloc[i], pred_df.cf_score.iloc[i]])
                     if paper_id not in paper_ids:
                         res = dext.get_paper(paper_id=paper_id)
-                        output_table.append([object_id, res['link'], res['title'], res['description']])
+                        output_table.append([object_id, associated, scores,
+                                             urls,
+                                             res['title'] + "\n\n" + res['link'], res['description']])
                         paper_ids.append(paper_id)
             pd.DataFrame(output_table,
-                         columns=["identifier", "url", "title", "description"]).to_csv("./data/output.csv", index=False)
+                         columns=["identifier", "association", "scores",
+                                  "url", "title", "description"]).to_csv("./data/output.csv", index=False)
             print("[x] List saved under ./data/output.csv")
     except:
         import traceback

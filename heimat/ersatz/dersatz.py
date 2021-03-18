@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn import cluster
 
-from eda import dbeschreiben
+from heimat.eda import dbeschreiben
 
 xfErsatzNullWerteDurchMean = lambda xdf_in: xdf_in.fillna(value=xdf_in.mean())
 xfErsatzNullWerteDurchMedian = lambda xdf_in: xdf_in.fillna(value=xdf_in.median())
@@ -110,3 +110,57 @@ def ersatz_mit_knn(xdf_input, xcol="CareerSatisfaction", ignoriere_spalten=("id"
 
     print("=============================================================================================")
     return xdf_res, clf
+
+
+def get_dataframe_filled(xdf_input, num_cols, id_col, target_col):
+    """
+        Ersatz mit KNN iterativ für fehlende Werte
+    """
+    dfres, _ = ersatz_mit_knn(xdf_input, xcol=num_cols[0], ignoriere_spalten=[id_col, target_col],
+                              threshold_null_werte_cluster=0.7, nclust=15)
+    for xc in filter(lambda x: x not in [id_col, target_col, num_cols[0]], xdf_input.describe().columns):
+        dfres, _ = ersatz_mit_knn(dfres, xcol=xc, ignoriere_spalten=[id_col, target_col],
+                                  threshold_null_werte_cluster=0.7, nclust=15)
+    return dfres
+
+
+def setval(dfin, xcol, xval, xval_new):
+    """
+        Für kategoriale Werte die einer Zuordnung unterliegen, können numerische Werte assoziert werden
+        eg "Masters" < "Doctorate"
+    """
+    for ik in range(dfin.shape[0]):
+        xw = str(dfin.at[ik, xcol])
+        if xw == xval:
+            dfin.at[ik, xcol] = xval_new
+    return dfin
+
+
+"""
+Ersatz von verschachtelten Listen mit String-Elemente wenn sep als Parameter vorhanden:
+Beispiel:
+    xs = "blah;blup;bleep"
+    sep = ";"
+    repl_strlist(xs, 'blup', 'blap')
+    => 'blah;blap;bleep'
+"""
+stringlist = lambda xs, sep: list(map(lambda x: x.strip(), str(xs).split(sep)))
+repl_strlist = lambda xstr_sep, xval, xval_new, sep: \
+    sep.join(
+        list(map(lambda x: x if x != xval else xval_new, stringlist(xstr_sep, sep)))
+    )
+
+
+def repl_df_dict(df, xcol, dict_repl, repl_strings=True, sep=";"):
+    """ Gegeben ein Dict-Objekt für eine kategoriale Variable ersatz der Werte entsprechend Werte für Keys.
+    df: data frame
+    dict_repl: replacement dictionary
+    repl_strings: whether the replacements values are numbers or strings
+    """
+    dfvalues = df[xcol].values.tolist()
+    for xkey in dict_repl.keys():
+        if repl_strings:
+            dfvalues = [repl_strlist(t, xkey, dict_repl[xkey], sep) for t in dfvalues]
+        else:
+            dfvalues = [t if xkey != t else dict_repl[xkey] for t in dfvalues]
+    return dfvalues

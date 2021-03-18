@@ -467,3 +467,19 @@ def sign_test(x, y, alternative='two-sided'):
         p = scipy.stats.binom(n, 0.5).cdf(n - k)
 
     return p
+
+
+def get_confusion_matrix_stats(cm, i):
+    """
+        Given a Confusion Matrix cm, calculates precision, recall and F1 scores
+    :param cm: confusion matrix
+    :param i: position of the variable, for with the caculation be done
+    :return: three statistics: precision, recall and the F1-Score
+    """
+    tp = cm[i, i]
+    fp = np.sum(cm[i, :]) - tp
+    fn = np.sum(cm[:, i]) - tp
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+    f1_score = 2 * (precision * recall) / (precision + recall)
+    return precision, recall, f1_score

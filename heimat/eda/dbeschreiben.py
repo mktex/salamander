@@ -66,3 +66,29 @@ def num_cat(xdf_input):
     print("\nKategoriale Felder: {}".format(xdf_cat.columns))
     print("\nNumerische Felder: {}".format(xdf_num.columns))
     return xdf_num, xdf_cat
+
+
+def zeige_kateg_features(xdata, target_col, id_col):
+    # Zeige die Situation der kategorialen Variablen, welche Werte steckt drin?
+    cols_filter = list(filter(lambda x: x is not None, [target_col, id_col]))
+    num_cols = list(filter(lambda x: x not in cols_filter, xdata.describe().columns))
+    cat_cols = list(filter(lambda x: x not in num_cols and x not in cols_filter, xdata.columns))
+    for xcol in cat_cols:
+        print("\n==========================")
+        print("COL: {}".format(xcol))
+        xr = frequenz_werte(xdata, xcol=xcol, prozente=False, sep=";")
+        print(xr.index.values.tolist())
+
+
+def zeige_korrelationen(xdf_input, target_col, threshold_corr = 0.01):
+    # Korrelationen stärker als 0.02 (oder niedriger als -0.02)
+    xtemp_corr = xdf_input.corr()[target_col]
+    xcorr2 = xtemp_corr[list(map(lambda x: np.abs(x) > threshold_corr, xtemp_corr.values))]
+    xcorr2df = pd.DataFrame({
+        'feature': xcorr2.index.values,
+        'IncomeCorr': xcorr2.values
+    })
+    # dfcorr = pd.merge(xcorr1df, xcorr2df, left_index=False, right_index=False)
+    dfcorr = xcorr2df
+    dfcorr = dfcorr.sort_values(by=["IncomeCorr"], ascending=False)
+    return dfcorr

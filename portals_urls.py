@@ -107,8 +107,11 @@ def cas(ra, dec):
 
 def show_urls():
     global RA, DEC
-    imaging(RA, DEC)
-    cas(RA, DEC)
-    simbad(RA, DEC)
-    cds(RA, DEC)
-    ned(RA, DEC)
+
+    url_img = imaging(RA, DEC)
+    url_cas = cas(RA, DEC)
+    url_simbad = simbad(RA, DEC)
+    url_cds = cds(RA, DEC)
+    url_ned = ned(RA, DEC)
+
+    return url_img, url_cas, url_simbad, url_cds, url_ned
