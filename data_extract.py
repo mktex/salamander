@@ -94,7 +94,6 @@ def prep_matrix_A():
         papers_df["keywords"] = [data_cleaning.clean_tags(t) for t in papers_df["keywords"].tolist()]
         keyword_features = list(set(list(reduce(lambda a, b: a + b, papers_df["keywords"].tolist()))))
         keyword_features.sort()
-        pprint(keyword_features)
 
     # Construction of matrix A of articles
     A = []
@@ -184,6 +183,7 @@ def save_data():
 def load_matrices():
     global A, U, MAP, keyword_features, nlp_features, _pipe
 
+    # data_cache.pckl gets verwritten each time; run() and main_reco.data_extraction() methods
     with open("./data/data_cache.pckl", "rb") as f:
         xdict = pickle.load(f)
 

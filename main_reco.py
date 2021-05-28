@@ -18,6 +18,7 @@ from heimat import reco
 import settings
 import cache_manager as cmng
 import portals_urls
+import data_cleaning
 
 pca_u, G = None, None
 pca_a, A_star = None, None
@@ -449,7 +450,8 @@ def perform_object_optimal_clustering():
                              param_choose[["nclusters", "noise", "distribution"]].values]
     param_choose = param_choose.sort_values(by="score", ascending=False)
     param_choose = param_choose.reset_index(drop=True)
-    param_choose = param_choose[param_choose.nclusters >= 5]
+    param_choose = param_choose[param_choose.nclusters >= 3]
+    param_choose = param_choose[param_choose.nclusters <= 15]
     q90 = param_choose.distribution.quantile(0.9)
     q10 = param_choose.distribution.quantile(0.1)
     q80 = param_choose.noise.quantile(0.8)
@@ -500,8 +502,9 @@ def construct_D_matrix():
             + list(map(lambda id: 1.0 if id in list_associated_articles else None, PAPERS_LIST))
         )
 
-    D = pd.DataFrame(D, columns=(["cluster"] + PAPERS_LIST))
+    D = pd.DataFrame(np.array(D), columns=(["cluster"] + PAPERS_LIST))
     print("First 10 rows out of {} (clusters):".format(D.shape[0]))
+    D = D.fillna(value=np.nan)
     print(D.head(10))
     time.sleep(5)
 
@@ -513,8 +516,10 @@ def generate_UVT():
         - this allows using SVD to find the latent features
     :return:
     """
-    global UVT
+    global UVT, funksvd_latent_features
     print("\n[x] Generating U, VT matrices through FunkSVD for the final SVD model .. ")
+    if funksvd_latent_features > D.shape[0]:
+        funksvd_latent_features = D.shape[0]
     U_clusters, V_articles, sse_means = reco.mat.FunkSVD(D.values[:, 1:],
                                                          latent_features=funksvd_latent_features,
                                                          learning_rate=0.0001,
@@ -621,7 +626,7 @@ def clean_matrix_U_invalid_object_id(_U):
         in pipeline object_ids that couldn't be processed and end up having no OBJID ('')
         should be removed
     :param _U:
-    :return:
+    :return: invalid records from _U where OBJID missing
     """
     return _U[_U.OBJID != ""]
 
@@ -641,6 +646,10 @@ def update_mlp_svd_model(object_id="* sig Ori", model_filepath="./data/salamande
     :return:
     """
     global A, U, MAP, txtclf
+
+    data_cleaning.clean_object_names()
+    data_cleaning.handle_objects_nan_values()
+
     A, U, MAP, txtclf = data_extraction()
     U = clean_matrix_U_invalid_object_id(U)
     U = drop_dups(U)
@@ -680,6 +689,11 @@ def save_model(model_filepath):
 
 
 def load_model(model_filepath):
+    """
+        Load model example:
+            import main_reco as mr
+            mr.load_model(mr.get_model_filepath_by_name('salamander'))
+    """
     global A, U, MAP, pca_u, G, pca_a, A_star, CLF_MLP, CLF_DBSCAN, D, PAPERS_LIST, UVT
     global papers_total, objects_articles_dict, objects_df
     import os
@@ -816,7 +830,20 @@ def apply(object_id, model_filepath, topk=10, return_value=False, ignore_article
         return apply_mlp_svd_voting(object_id=object_id, topk=topk, return_df=True, ignore_articles=ignore_articles)
 
 
-reformat_object_id = lambda xstr: ' '.join(list(filter(lambda x: x.strip() != "", xstr.split(" "))))
+def reformat_object_id(xstr):
+    return ' '.join(list(filter(lambda x: x.strip() != "", xstr.split(" "))))
+
+
+def describe_data(model_filepath="./data/salamander_model.pckl"):
+    """
+        - Prints out information about downloaded and processed data:
+            - how many objects, papers
+            - what are the most important papers
+        - plots figures to show what type of objects are available
+    :return:
+    """
+    global U, A, MAP, G, A_star, CLF_MLP, CLF_DBSCAN, D, PAPERS_LIST, UVT
+    load_model(model_filepath)
 
 
 def search_object_name(xname, input_df):
@@ -835,18 +862,6 @@ def search_object_name(xname, input_df):
         return None
 
 
-def describe_data(model_filepath="./data/salamander_model.pckl"):
-    """
-        - Prints out information about downloaded and processed data:
-            - how many objects, papers
-            - what are the most important papers
-        - plots figures to show what type of objects are available
-    :return:
-    """
-    global U, A, MAP, G, A_star, CLF_MLP, CLF_DBSCAN, D, PAPERS_LIST, UVT
-    load_model(model_filepath)
-
-
 def get_coordinates(object_id):
     global objects_df
     res = objects_df[
@@ -858,6 +873,9 @@ def get_coordinates(object_id):
         print("object_id:", object_id)
     return res[["PLUG_RA", "PLUG_DEC"]]
 
+
+def get_model_filepath_by_name(name):
+    return './data/{}_model.pckl'.format(name)
 
 def print_help():
     print("\n[x] Example usage:"
@@ -883,11 +901,17 @@ def print_help():
 
 
 """    
-    Blog article: [TODO:]
     This script is the main component to be used for:
         - rebuild the proposed voting model
         - check recommendation for astronomical objects (that were included in the model)
         - check recommendations for a set of astronomical objects 
+        
+    Object types, nomenclature, Abkürzungen:
+        http://simbad.u-strasbg.fr/simbad/sim-display?data=otypes
+        
+    When adding new objects, might need to update clean_tags() method
+    import data_cleaning
+    keywords = data_cleaning.clean_tags(keywordlist=None, debug=True)
 """
 if __name__ == "__main__":
 
@@ -899,18 +923,18 @@ if __name__ == "__main__":
 
         # python main_reco.py update 'salamander'
         elif sys.argv[1] == 'update':
-            model_path = './data/{}_model.pckl'.format(sys.argv[2])
+            model_path = get_model_filepath_by_name(sys.argv[2])
             update_mlp_svd_model(model_filepath=model_path)
 
         # python main_reco.py papers 'salamander' '* sig Ori' 15
         elif sys.argv[1] == 'papers':
-            model_path = './data/{}_model.pckl'.format(sys.argv[2])
+            model_path = get_model_filepath_by_name(sys.argv[2])
             topk = 10 if len(sys.argv) == 4 else int(sys.argv[4])
             apply(object_id=sys.argv[3], model_filepath=model_path, topk=topk)
 
         # python main_reco.py process 'salamander' 15 'NGC 2566' 'NGC 2207' 'NGC 2974' 'NGC 2559' 'NGC 2292' 'NGC 2613' 'NGC 3115'
         elif sys.argv[1] == 'process':
-            model_path = './data/{}_model.pckl'.format(sys.argv[2])
+            model_path = get_model_filepath_by_name(sys.argv[2])
             topk = int(sys.argv[3])
             object_id_list = sys.argv[4:]
             output_table = []

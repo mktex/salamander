@@ -115,3 +115,6 @@ def show_urls():
     url_ned = ned(RA, DEC)
 
     return url_img, url_cas, url_simbad, url_cds, url_ned
+
+
+# TODO: Extragalactic Distances Datenbank? http://edd.ifa.hawaii.edu/dfirst.php?

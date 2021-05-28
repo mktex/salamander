@@ -6,7 +6,6 @@ import cache_manager as cmng
 import read_simbad
 import astrocalc
 
-
 def show_two_dicts(d1, d2):
     """
         given two dictionaries with same keys, show using pandas dataframe the changes between the two
@@ -58,14 +57,27 @@ def fix_missing_simbad_spectral_data():
     cmng.save_work(papers_total, objects_articles_dict, objects_df_new)
 
 
-def clean_tags(keywordlist, debug=False):
+def clean_tags(keywordlist=None, debug=False):
     """
         Given list of keywords, clean it to be able to have corresponding features
         return cleaned list of keywords
+
+        debug example:
+            import data_cleaning
+            keywords = data_cleaning.clean_tags(keywordlist=None, debug=True)
+            # then back and forth in this method hardcoded values; it only needs to lead to relatively lower dimensions
+
     :param keywordlist:
     :param debug:
     :return:
     """
+    if keywordlist is None:
+        from functools import reduce
+        papers_total, objects_articles_dict, objects_df = cmng.load_work()
+        papers_df = pd.DataFrame(papers_total, columns=['refcode', "title", "description", "link", "keywords"])
+        keywordlist = list(set(reduce(lambda a, b: a + b, papers_df["keywords"].tolist())))
+
+    # remove by replacements
     replacements_dict = {
         "surveys: galaxies: fundamental parameters: galaxies: statistics": "surveys",
         "submillimetre": "submillimeter",
@@ -80,14 +92,73 @@ def clean_tags(keywordlist, debug=False):
         'statistical': 'statistics',
         'statistics computation': 'statistics',
         'statistics machine learning': 'statistics',
-        'supernovae general': "supernovae"
+        'supernovae general': "supernovae",
+        'white dwarf stars': 'white dwarf',
+        'surveys': 'survey',
+        'survey galaxies fundamental parameters galaxies statistics': 'survey'
     }
+
+    replacements_by_startswith_dict = {
+        'techniques': 'techniques_diverse',
+        'stars binaries': 'stars binaries',
+        'astronomical': 'astronomical_diverse',
+        'accretion': 'accretion',
+        'ultraviolet': 'ultraviolet',
+        'supernovae': 'supernovae',
+        'x ray': 'x ray sources',
+        'submillimeter': 'submillimeter obs',
+        'stellar': 'stellar studies',
+        'stars': 'stellar studies',
+        'star': 'stellar studies',
+        'binaries': 'stellar studies',
+        'spectroscopic': 'spectral',
+        'spectral': 'spectral analysis',
+        'spectrum': 'spectral analysis',
+        'radio': 'radio astronomy',
+        'quasars': 'quasars',
+        'photometry': 'photometry',
+        'planetary systems': 'planetary systems',
+        'protoplanetary': 'protoplanetary dics',
+        'open clusters': 'open clusters',
+        'methods': 'methodology',
+        'galaxy': 'galaxy astronomy',
+        'galaxies': 'galaxy astronomy',
+        'galactic': 'galaxy astronomy',
+        'cosmology': 'cosmology',
+        'catalogue': 'catalogue',
+        'catalog': 'catalogue',
+        'brightness': 'brightness',
+        'astrophysics': 'astrophysics',
+        'ism': 'interstellar medium',
+        'interstellar': 'interstellar medium',
+        'intergalactic medium': 'interstellar medium',
+        'radiation mechanisms': 'radiation mechanisms',
+        'schmidt cameras': 'instrumentation',
+        'schmidt telescope': 'instrumentation',
+        'cassegrain': 'instrumentation',
+        'instrumentation': 'instrumentation',
+        'infrared': 'infrared astronomy',
+        'hertzsprung': 'hertzsprung russel diagram',
+        'gravitational len': 'gravitational lensing',
+        'distance': 'distance measurements',
+        'gamma ray': 'gamma ray astronomy',
+        'parallax': 'parallax',
+        'orion': 'clusters general',
+        'cepheid': 'cepheid',
+        'black hole': 'black hole',
+        'carbon': 'carbon',
+        'globular': 'globular clusters',
+        'globular clusters': 'globular clusters',
+        'astrometric and interferometric binaries': 'binaries',
+
+    }
+
     def replpunctuation(xstr):
         import string
         for c in string.punctuation:
             xstr = xstr.replace(c, " ")
         return " ".join(list(filter(lambda y: y != "", xstr.split(" "))))
-    author_names = list(filter(lambda x: "," in x, keywordlist))
+
     keywords = list(filter(lambda x: "," not in x, keywordlist))
     keywords = list(map(lambda x: x.strip(), keywords))
     keywords = list(map(lambda x: x.lower(), keywords))
@@ -104,34 +175,134 @@ def clean_tags(keywordlist, debug=False):
     keywords = list(map(lambda x:
                         " ".join(list(filter(lambda y: y != "", x.replace("-", " ").split(" ")))),
                 keywords))
+
+    # remove numbers
+    xfuncstr = lambda xstr: " ".join(
+        list(filter(lambda y: y != "",
+            list(map(lambda x: x.strip(), xstr.split(" ")))
+        ))
+    )
+    for c in "0123456789":
+        keywords = list(map(lambda x: xfuncstr(x.replace(c, "")), keywords))
+
+    # remove anything that is less than 3 chars
+    keywords = list(set(filter(lambda x: len(x) >= 3, keywords)))
+
+    # replacements by dictionary
     for key, val in replacements_dict.items():
         keywords = list(map(lambda x: x.replace(key, val), keywords))
-    final_removals = [
-        'm 101 group',
-        'm 51',
-        'm 63',
-        'm10 amp ngc 6254',
-        'm22',
-        'm42',
-        'm54',
-        'm80 amp ngc 6093',
-        '85 10',
-        '85a15',
-        '85a30',
-        '95 10 eg',
-        '97 10 nf',
-        '97 10 vm',
-        '97 80 af',
-        '97 80 di',
-        'a2199',
-        'sn2012cs',
-        'sn2012p',
-        'sn2013bb'
-    ]
-    keywords = list(filter(lambda x: not x in final_removals, keywords))
+
+    for key, val in replacements_by_startswith_dict.items():
+        keywords = list(map(lambda x: val if key == x[:len(key)] else x, keywords))
+
+    keywords = list(set(keywords))
+    keywords.sort()
+
     if debug:
-        print(keywordlist)
-        print("\t Authors :", author_names)
-        print("\t Keywords:", keywords)
+        from pprint import pprint
+        pprint(keywords)
+        # print("\t Authors :", author_names)
+        # print("\t Keywords:", keywords)
         print("")
     return keywords
+
+
+def clean_object_names():
+    """
+        Update names in objects_articles_dict and objects_df then save back data to cache
+        - no multiple whitespaces
+        - remove objects with no name, ie b''
+    :return:
+    """
+    import cache_manager as cmng
+    import pandas as pd
+    from pprint import pprint
+    papers_total, objects_articles_dict, objects_df = cmng.load_work()
+    t = list(objects_articles_dict.keys())
+    t = list(filter(lambda x: '123' != x.decode('utf-8')[:3], t))
+    t.sort()
+    print("Cleanning object names..")
+    pprint(t)
+    for objid in t:
+        objid_new = " ".join(
+            list(filter(lambda y: y != "",
+                list(map(lambda x: x.strip(), objid.decode("utf-8").split(" ")))
+            ))
+        ).encode("utf-8")
+        if objid != objid_new:
+            cmng.update_object_name(objid, objid_new)
+
+
+def check_nan_values_spectra_features(objects_df):
+    spec_features = ["SPEC_U", "SPEC_G", "SPEC_R", "SPEC_I", "SPEC_Z"]
+    objects_df_nans = objects_df[["OBJID", "CLASS", "SUBCLASS", "PLUG_RA", "PLUG_DEC"] + spec_features].copy()
+    nan_values = []
+    for ik in range(objects_df_nans.shape[0]):
+        record = objects_df_nans.iloc[ik]
+        n = np.sum([t is None or np.isnan(t) for t in record[spec_features].values.tolist()]) / len(spec_features)
+        nan_values.append(n)
+    objects_df_nans["pnan"] = nan_values
+    return objects_df_nans
+
+
+def get_distances_to_objects(objects_df, objid, objects_removal):
+    """
+        Returns a dataframe with distances to objid ignoring those objects that have been planned for removal
+    """
+    from scipy.spatial.distance import cdist
+    func_distance = lambda xs1, xs2: cdist(np.array(xs1).reshape(-1, 1), np.array(xs2.reshape(-1, 1)), 'euclidean')
+    obj_idx = objects_df[objects_df.OBJID == objid].index.values[0]
+    obj_pos = objects_df[["PLUG_RA", "PLUG_DEC"]].iloc[obj_idx].values.tolist()
+    G = objects_df[["PLUG_RA", "PLUG_DEC"]].values
+    distances = []
+    for j in range(0, G.shape[0]):
+        if j != obj_idx:
+            xdist = func_distance(obj_pos, G[j]).flatten()[0]
+            distances.append([j, xdist])
+    xdf = pd.DataFrame(distances, columns=["id", "d"])
+    xdf["will_be_removed"] = [objects_df['OBJID'].iloc[t] in objects_removal for t in xdf['id'].values.tolist()]
+    xdf = xdf[xdf["will_be_removed"] == False]
+    xdf = xdf.sort_values(by="d", ascending=True)
+    xdf = xdf.reset_index(drop=True)
+    return xdf, obj_idx, obj_pos
+
+
+def handle_objects_nan_values():
+    """
+        Objects that only have a name could be eliminated and related papers given to closest object
+    :return:
+    """
+    papers_total, objects_articles_dict, objects_df = cmng.load_work()
+
+    objects_df_nans = check_nan_values_spectra_features(objects_df)
+    objects_removal = objects_df_nans[objects_df_nans.pnan == 1.0].copy()['OBJID'].values.tolist()
+
+    removal_list = []
+    for objid in objects_removal:
+        xdf, obj_idx, obj_pos = get_distances_to_objects(objects_df, objid, objects_removal)
+        print("========================================================================================")
+        print("OBJID: {}".format(objid))
+        print("Neighbouring Object:")
+        print(objects_df.loc[[obj_idx, xdf["id"].iloc[0]]].transpose())
+        objid_receiving_papers = objects_df.loc[xdf["id"].iloc[0]].OBJID
+        removal_list.append([objid, objid_receiving_papers])
+
+    removal_df = pd.DataFrame(removal_list, columns=["objid_old", "objid_new"])
+
+    # not allowing to loose Ms, NGCs, HDs
+    fchoose = lambda s1, s2: s1 if (b'M' == s1[:1] or b'HD' == s1[:2] or b'NGC' == s1[:3]) else s2
+    removal_df['rename_to'] = [fchoose(*t) for t in removal_df[["objid_old", "objid_new"]].values]
+
+    for ik in range(removal_df.shape[0]):
+        print("=======================================================================================")
+        from_objid = removal_df["objid_old"].iloc[ik]
+        to_objid = removal_df["objid_new"].iloc[ik]
+        rename_to = removal_df["rename_to"].iloc[ik]
+        cmng.transfer_papers(from_objid, to_objid)
+        cmng.remove(from_objid)
+        if rename_to != to_objid:
+            cmng.update_object_name(to_objid, rename_to)
+
+    print("Finished cleaning data of Objects with too many null-values.")
+    print("You can check results with: \n"
+          "\tpapers_total, objects_articles_dict, objects_df = cmng.load_work()")
