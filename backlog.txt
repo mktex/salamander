@@ -1,0 +1,22 @@
+
+##################################################################
+v0.3
+- warning regarding usage of np.float
+- redownload papers for objects even if they have been already visited, this way newly published papers get added to local cache
+- handle large matrices to improve perfomance
+- improved cleaning object tags
+
+
+
+##################################################################
+v0.2
+- added better handling of keywords to reduce categories
+- for subsequent visits of same object: outputs recent related articles regardles of recommendation
+- global setting to redownload an object even if it is in cache, such that a later visit (e.g. one year later) results
+  in adding recent papers, if there were any
+
+
+
+##################################################################
+v0.1
+- first version

@@ -1,0 +1,15 @@
+/data/objects_df.pckl
+/data/download-0.txt
+/data/data_cache.pckl
+/data/download-2.txt
+/data/output.csv
+/data/archive/
+/data/salamander_model.pckl
+/data/objects_articles_dict.pckl
+/data/download-1.txt
+/data/download.txt
+/data/papers_total.pckl
+**/.DS_Store
+**/__pycache__/**
+/heimat/beispiele/
+.idea/**
